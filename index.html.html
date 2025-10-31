@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Asistente de Almuerzos — Sugerencias Inteligentes</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .card{box-shadow:0 10px 30px rgba(0,0,0,.08)}
+  .photo{object-fit:cover;width:100%;height:110px;border-radius:.75rem}
+  .cell-btn{opacity:0;transition:opacity .2s}
+  td:hover .cell-btn{opacity:1}
+  .btn{border-radius:1rem;padding:.6rem 1rem;font-weight:600}
+  .pill{padding:.2rem .6rem;border-radius:9999px;background:#eef2ff;font-size:.75rem;white-space:nowrap}
+</style>
+</head>
+<body class="min-h-screen bg-gradient-to-b from-sky-50 via-emerald-50 to-amber-50 text-slate-900">
+<main class="max-w-6xl mx-auto px-3 sm:px-6 py-6 sm:py-10">
+
+  <header class="text-center mb-6">
+    <h1 class="text-3xl sm:text-5xl font-extrabold">👨‍🍳 Asistente de Almuerzos</h1>
+    <p class="mt-2 text-base sm:text-xl">Almuerzos (5 personas) — 🇵🇪 Peruana · 🇪🇸 Española · 🇨🇳 Chifa · 🇫🇷 Pop. en España. <b>Sin pescados ni mariscos.</b></p>
+  </header>
+
+  <!-- Inventario (informativo) -->
+  <section class="card rounded-3xl bg-white p-4 sm:p-6 mb-6">
+    <h2 class="text-xl font-bold mb-2">🧊 ¿Qué tengo en casa? <span class="opacity-60 text-sm">(solo informativo, no bloquea sugerencias)</span></h2>
+
+    <div class="grid sm:grid-cols-3 gap-3">
+      <div class="flex gap-2">
+        <input id="qty" type="number" step="0.1" min="0" class="w-24 rounded-xl border p-2" placeholder="Cant.">
+        <select id="unit" class="rounded-xl border p-2">
+          <option value="kg">kg</option>
+          <option value="g">g</option>
+          <option value="piezas">piezas</option>
+        </select>
+      </div>
+      <input id="item" class="rounded-xl border p-2" placeholder="Ej.: pollo, patatas, pimiento, tomate, cebolla…">
+      <div class="flex gap-2">
+        <button id="addItem" class="btn bg-emerald-600 text-white">➕ Agregar</button>
+        <button id="clearPantry" class="btn bg-rose-600 text-white">🗑️ Vaciar</button>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <label class="text-sm opacity-70">Pegar texto (separa por coma o punto y coma):</label>
+      <input id="bulk" class="mt-1 w-full rounded-xl border p-2" placeholder="Ej.: 5 kg pollo; 3 kg carne; 6 piezas patatas; 2 pimientos; 2 kg arroz">
+      <button id="parseBulk" class="mt-2 btn bg-indigo-600 text-white">📥 Añadir desde texto</button>
+    </div>
+
+    <div class="mt-4">
+      <h3 class="font-semibold mb-1">Inventario actual:</h3>
+      <ul id="pantryList" class="list-disc ms-6 space-y-1 text-sm"></ul>
+    </div>
+
+    <div class="mt-4 grid gap-2">
+      <div class="flex flex-wrap gap-2">
+        <input id="keywords" class="flex-1 rounded-xl border p-2" placeholder="Palabras clave: pollo, patatas, pimiento, tomate, cebolla… (coinciden TODAS)">
+        <button id="btnIdeasKeywords" class="btn bg-sky-600 text-white">💡 Ideas por palabras</button>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button id="btnWeek" class="btn bg-sky-900 text-white">📅 Generar semana</button>
+        <button id="btnWeekReroll" class="btn bg-indigo-600 text-white">🔁 Otra semana</button>
+        <button id="btnSave" class="btn bg-emerald-700 text-white">💾 Guardar</button>
+        <button id="btnLoad" class="btn bg-amber-600 text-white">📂 Cargar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sugerencias -->
+  <section class="card rounded-3xl bg-white p-4 sm:p-6 mb-6">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <h2 class="text-xl font-bold">🔎 Sugerencias (10 por página)</h2>
+      <div class="flex items-center gap-2 text-sm">
+        <span class="pill">Perú</span>
+        <span class="pill">España</span>
+        <span class="pill">Chifa</span>
+        <span class="pill">FR Popular</span>
+        <span id="pantryHint" class="ms-2 text-xs opacity-70"></span>
+      </div>
+    </div>
+    <div id="suggestions" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3"></div>
+    <div class="flex justify-center gap-2 mt-3">
+      <button id="btnPrev" class="btn bg-slate-200">⬅️ Anterior</button>
+      <button id="btnNext" class="btn bg-slate-200">➡️ Ver más</button>
+      <span id="pageInfo" class="text-sm opacity-60"></span>
+    </div>
+    <p class="text-xs opacity-60 mt-2">Toca una tarjeta para enviarla a un día (elige el día). El inventario solo inspira, nunca bloquea.</p>
+  </section>
+
+  <!-- Tabla semana -->
+  <section class="card rounded-3xl bg-white p-3 sm:p-4">
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm sm:text-base">
+        <thead class="bg-slate-100">
+          <tr>
+            <th class="px-3 py-2 text-left">Almuerzo</th>
+            <th class="px-3 py-2 text-left">Lun</th>
+            <th class="px-3 py-2 text-left">Mar</th>
+            <th class="px-3 py-2 text-left">Mié</th>
+            <th class="px-3 py-2 text-left">Jue</th>
+            <th class="px-3 py-2 text-left">Vie</th>
+            <th class="px-3 py-2 text-left">Sáb</th>
+            <th class="px-3 py-2 text-left">Dom</th>
+          </tr>
+        </thead>
+        <tbody id="tbody" class="align-top">
+          <tr data-row="almuerzo">
+            <td class="px-3 py-2 font-semibold">🍽️ Platos</td>
+            <td class="p-2" data-col="0"></td>
+            <td class="p-2" data-col="1"></td>
+            <td class="p-2" data-col="2"></td>
+            <td class="p-2" data-col="3"></td>
+            <td class="p-2" data-col="4"></td>
+            <td class="p-2" data-col="5"></td>
+            <td class="p-2" data-col="6"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs opacity-60 mt-2">Cada celda tiene un botón 🎲 para pedir otra receta similar.</p>
+  </section>
+
+  <!-- Lista de la compra -->
+  <section class="card rounded-3xl bg-white p-4 sm:p-6 mt-6">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <h2 class="text-xl font-bold">🧾 Lista de la compra</h2>
+      <div class="flex gap-2">
+        <button id="genList" class="btn bg-emerald-600 text-white">➕ Desde el plan</button>
+        <button id="clearList" class="btn bg-rose-600 text-white">🗑️ Vaciar</button>
+      </div>
+    </div>
+    <ul id="shoppingList" class="list-disc ms-6 mt-3 space-y-1 text-sm"></ul>
+    <div class="mt-3 flex gap-2">
+      <input id="extraItem" class="flex-1 rounded-xl border p-2" placeholder="Añadir extra (ej.: aceite, pan)…">
+      <button id="addExtra" class="btn bg-indigo-600 text-white">➕ Añadir</button>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ========= Utilidades ========= */
+function norm(s){return (s||"").toLowerCase().trim();}
+function encodeQ(q){return encodeURIComponent(q);}
+function pick(a){return a[Math.floor(Math.random()*a.length)];}
+function todayIndex(){return (new Date().getDay()+6)%7;} // 0=lun..6=dom
+
+/* ========= Enlaces búsqueda ========= */
+function searchLinks(name,tags){
+  const base=(name+" receta "+(tags||[]).join(" ")).trim();
+  const qEs=encodeQ(base+" español");
+  const qPisu=encodeQ(name+" Pisu Cocina receta");
+  const qArg=encodeQ(name+" Karlos Arguiñano receta");
+  return `
+    <a class="underline text-sky-700" target="_blank" href="https://www.tiktok.com/search?q=${qEs}">TikTok</a> ·
+    <a class="underline text-emerald-700" target="_blank" href="https://www.youtube.com/results?search_query=${qEs}">YouTube</a> ·
+    <a class="underline text-rose-700" target="_blank" href="https://www.google.com/search?q=${qEs}">Google</a>
+    <span class="opacity-40">·</span>
+    <a class="underline text-sky-700" target="_blank" href="https://www.tiktok.com/search?q=${qPisu}">Pisu</a> ·
+    <a class="underline text-emerald-700" target="_blank" href="https://www.youtube.com/results?search_query=${qArg}">Arguiñano</a>`;
+}
+
+/* ========= Ensaladas ========= */
+const SALADS_FRESH = [
+  "Ensalada criolla (cebolla, tomate, limón, ají)", "Ensalada de palta y tomate",
+  "Mixta: lechuga, tomate, cebolla, aceitunas", "Tomate aliñado con ajo y orégano",
+  "Pepino, yogur y hierbabuena", "Zanahoria rallada con limón", "Ensalada de repollo y zanahoria"
+];
+const SALADS_COOKED = [
+  "Ensalada rusa (papa, zanahoria, arvejas)","Verduras salteadas (brócoli, zanahoria, pimiento)",
+  "Quinua con choclo y perejil","Puré de papas con oliva","Zanahoria glaseada","Judías verdes con patata"
+];
+
+/* ========= Catálogo de recetas (muestra inicial; ampliable) ========= */
+function R(n,c,prot,t,tags,img,salads){return {name:n,cuisine:c,protein:prot,time:t,tags:tags||[],img:img||"",salads:salads||[]};}
+const IMG={
+  pollo:"https://images.unsplash.com/photo-1604908554035-0d065f1810a5?q=80&w=1200&auto=format&fit=crop",
+  salteado:"https://images.unsplash.com/photo-1585238342028-4bbc1a31d3f7?q=80&w=1200&auto=format&fit=crop",
+  arroz:"https://images.unsplash.com/photo-1604908554185-1b6a1b16a3d0?q=80&w=1200&auto=format&fit=crop",
+  pasta:"https://images.unsplash.com/photo-1521389508051-d7ffb5dc8bbf?q=80&w=1200&auto=format&fit=crop",
+  cerdo:"https://images.unsplash.com/photo-1544025162-8e3123e3043b?q=80&w=1200&auto=format&fit=crop",
+  res:"https://images.unsplash.com/photo-1544025161-1b04e9a1f1af?q=80&w=1200&auto=format&fit=crop",
+  wok:"https://images.unsplash.com/photo-1526312426976-593c2b999068?q=80&w=1200&auto=format&fit=crop",
+  guiso:"https://images.unsplash.com/photo-1543352634-8730a9b93ba5?q=80&w=1200&auto=format&fit=crop",
+  horno:"https://images.unsplash.com/photo-1488900128323-21503983a07e?q=80&w=1200&auto=format&fit=crop",
+  crema:"https://images.unsplash.com/photo-1547592166-23ac45744acd?q=80&w=1200&auto=format&fit=crop"
+};
+
+const RECIPES=[
+  R("Pollo saltado con papas","Perú","pollo",35,["pollo","papa","cebolla","tomate","ají amarillo","arroz","soya","sillao"],IMG.salteado,SALADS_FRESH),
+  R("Ají de gallina exprés","Perú","pollo",35,["pollo","papa","ají amarillo","pan","leche","queso","nuez moscada"],IMG.crema,SALADS_COOKED),
+  R("Chaufa de pollo (chifa)","Chifa","pollo",40,["pollo","arroz","huevo","cebolla china","soya","kion"],IMG.wok,SALADS_FRESH),
+  R("Pollo a la olla con verduras","Perú","pollo",45,["pollo","papa","zanahoria","pimiento","cebolla","ajo"],IMG.guiso,SALADS_COOKED),
+  R("Tallarines rojos con pollo","Perú","pollo",40,["pollo","tomate","pasta","ají panca","queso","zanahoria","cebolla"],IMG.pasta,SALADS_FRESH),
+  R("Arroz con pollo clásico","Perú","pollo",40,["pollo","arroz","culantro","zanahoria","pimiento","guisantes","cebolla","ajo"],IMG.arroz,SALADS_FRESH),
+
+  R("Pollo al horno con patatas y orégano","España","pollo",45,["pollo","patatas","orégano","ajo","cebolla","pimiento","aceite oliva"],IMG.pollo,SALADS_FRESH),
+  R("Guiso de pollo con patatas","España","pollo",45,["pollo","patatas","zanahoria","cebolla","pimiento","laurel"],IMG.guiso,SALADS_COOKED),
+  R("Arroz con pollo y verduras (ES)","España","pollo",40,["pollo","arroz","pimiento","guisantes","cebolla","ajo","azafrán"],IMG.arroz,SALADS_FRESH),
+
+  R("Lomo de cerdo adobado al horno","España","cerdo",45,["cerdo","pimentón","patatas","ajo","orégano","aceite oliva"],IMG.horno,SALADS_FRESH),
+  R("Chicharrón de cerdo al horno (light)","Perú","cerdo",40,["cerdo","camote","limón","sal","pimienta","comino"],IMG.cerdo,SALADS_FRESH),
+  R("Ají de chancho rápido","Perú","cerdo",35,["cerdo","ají amarillo","pan","leche","queso","papa"],IMG.guiso,SALADS_COOKED),
+  R("Cerdo al sillao (chifa)","Chifa","cerdo",35,["cerdo","soya","kion","pimiento","arroz","cebolla"],IMG.wok,SALADS_FRESH),
+  R("Costillas de cerdo al horno con patatas","España","cerdo",45,["cerdo","patatas","ajo","romero","aceite oliva","pimentón"],IMG.horno,SALADS_FRESH),
+
+  R("Lomo saltado clásico","Perú","res",35,["res","tomate","cebolla","ají amarillo","arroz","papa","soya","vinagre"],IMG.salteado,SALADS_FRESH),
+  R("Estofado rápido de ternera","España","res",45,["res","patatas","zanahoria","tomate","laurel","cebolla","caldo"],IMG.res,SALADS_COOKED),
+  R("Res con verduras salteadas (chifa)","Chifa","res",35,["res","pimiento","zanahoria","brócoli","soya","arroz","kion"],IMG.wok,SALADS_FRESH),
+  R("Pimientos rellenos de carne","España","res",45,["res","pimiento","cebolla","tomate","arroz","ajo"],IMG.horno,SALADS_FRESH),
+  R("Albóndigas en salsa casera","España","res",40,["res","tomate","cebolla","zanahoria","ajo","pan rallado","huevo"],IMG.guiso,SALADS_COOKED),
+
+  R("Crema de zapallo (calabaza)","Perú","pollo",25,["calabaza","zanahoria","leche","pan","cebolla"],IMG.crema,SALADS_FRESH),
+  R("Vichyssoise rápida (FR)","FR","pollo",20,["puerro","patata","nata","cebolla","mantequilla"],IMG.crema,SALADS_FRESH),
+  R("Crema de verduras mixta","España","pollo",25,["zanahoria","calabacín","patata","cebolla","ajo"],IMG.crema,SALADS_FRESH),
+
+  R("Pollo con pimientos al ajillo","España","pollo",35,["pollo","pimiento","ajo","aceite oliva","perejil"],IMG.pollo,SALADS_FRESH),
+  R("Aeropuerto (chaufa+tallarín) de pollo","Chifa","pollo",45,["pollo","arroz","pasta","soya","huevo","kion","cebolla china"],IMG.wok,SALADS_FRESH),
+  R("Saltado de fideos con res","Chifa","res",40,["res","pasta","pimiento","cebolla","soya","kion"],IMG.wok,SALADS_FRESH),
+  R("Cerdo con verduras al wok","Chifa","cerdo",35,["cerdo","pimiento","zanahoria","brócoli","soya","kion"],IMG.wok,SALADS_FRESH),
+
+  R("Pollo a la provenzal (horno)","FR","pollo",45,["pollo","hierbas provenzales","patatas","ajo","cebolla"],IMG.horno,SALADS_FRESH),
+  R("Boeuf à la mode (rápido)","FR","res",45,["res","zanahoria","cebolla","vino tinto","patatas"],IMG.res,SALADS_COOKED),
+  R("Gratin de patatas con pollo","FR","pollo",45,["patatas","pollo","nata","queso","cebolla"],IMG.horno,SALADS_COOKED),
+
+  R("Salteado de pollo con pimiento y cebolla","Perú","pollo",30,["pollo","pimiento","cebolla","soya","ajo"],IMG.salteado,SALADS_FRESH),
+  R("Guiso de res con tomate y zanahoria","España","res",40,["res","tomate","zanahoria","cebolla","ajo"],IMG.guiso,SALADS_COOKED),
+  R("Cerdo al horno con pimientos","España","cerdo",40,["cerdo","pimiento","ajo","cebolla","patatas"],IMG.horno,SALADS_FRESH),
+  R("Arroz salteado con pollo y verduras","Chifa","pollo",35,["pollo","arroz","pimiento","zanahoria","cebolla","soya"],IMG.wok,SALADS_FRESH),
+  R("Crema de zanahoria y puerro","España","pollo",25,["zanahoria","puerro","patata","caldo"],IMG.crema,SALADS_FRESH),
+  R("Patatas guisadas con carne","España","res",45,["res","patatas","cebolla","pimiento","tomate"],IMG.guiso,SALADS_COOKED),
+  R("Pollo con tomate y cebolla","Perú","pollo",35,["pollo","tomate","cebolla","ajo"],IMG.guiso,SALADS_FRESH),
+  R("Cerdo en salsa de tomate","España","cerdo",40,["cerdo","tomate","cebolla","pimiento","ajo"],IMG.guiso,SALADS_COOKED),
+  R("Res salteada con pimiento","Perú","res",30,["res","pimiento","cebolla","soya","ajo"],IMG.salteado,SALADS_FRESH),
+  R("Arroz con cerdo y pimientos","España","cerdo",40,["arroz","cerdo","pimiento","cebolla","ajo"],IMG.arroz,SALADS_FRESH)
+];
+
+/* ========= Estado, paginación y búsqueda ========= */
+let pantry=[];            // {qty,unit,item} (solo informativo)
+let currentResults=RECIPES.slice();
+let pageIdx=0, pageSize=10;
+
+function renderPantry(){
+  const ul=document.getElementById('pantryList');
+  ul.innerHTML = pantry.length ? pantry.map(p=>`<li>${p.qty} ${p.unit} ${p.item}</li>`).join("") : "<li class='opacity-60'>Vacío</li>";
+  refreshSmartSuggestions(); // ← ACTUALIZA SUGERENCIAS AUTOMÁTICAMENTE
+}
+
+function parseBulkLine(s){
+  s=s.trim(); if(!s) return null;
+  const m=s.match(/([\d.,]+)\s*(kg|kilos?|g|gramos?|piezas?|uds?)?\s*(de\s+)?(.+)/i);
+  if(!m) return null;
+  let qty=parseFloat(m[1].replace(",","."));
+  let u=(m[2]||"kg").toLowerCase();
+  const map={kilo:"kg",kilos:"kg",g:"g",gramo:"g",gramos:"g",pieza:"piezas",piezas:"piezas",uds:"piezas",ud:"piezas"};
+  u = map[u]||u;
+  let item=(m[4]||"").trim();
+  return {qty:qty||0, unit:u, item:norm(item)};
+}
+
+/* Intersección estricta (para "Ideas por palabras") */
+function recipeMatchesKeywords(r, keys){
+  if(!keys.length) return true;
+  const text=(r.name+" "+r.tags.join(" ")+" "+r.cuisine+" "+r.protein).toLowerCase();
+  return keys.every(k=>text.indexOf(k)>-1);
+}
+
+/* Sugerencias inteligentes basadas en inventario (unión de top-3 palabras) */
+function refreshSmartSuggestions(){
+  if(!pantry.length){
+    document.getElementById('pantryHint').textContent="";
+    currentResults = RECIPES.slice();
+    pageIdx=0; renderSuggestionsPage(); return;
+  }
+  const freq={};
+  pantry.forEach(p=>{
+    p.item.split(/\s+/).forEach(w=>{
+      w=norm(w); if(w.length>2){ freq[w]=(freq[w]||0)+1; }
+    });
+  });
+  const top=Object.keys(freq).sort((a,b)=>freq[b]-freq[a]).slice(0,3);
+  document.getElementById('pantryHint').textContent = top.length? `usando inventario: ${top.join(", ")}` : "";
+
+  currentResults = RECIPES.filter(r=>{
+    if(top.length===0) return true;
+    const text=(r.name+" "+r.tags.join(" ")).toLowerCase();
+    return top.some(t=>text.indexOf(t)>-1); // unión (más ideas)
+  });
+  if(currentResults.length===0) currentResults = RECIPES.slice();
+  pageIdx=0; renderSuggestionsPage();
+}
+
+function cardHTML(r){
+  const salad = (r.salads.length?pick(r.salads):pick([].concat(SALADS_FRESH,SALADS_COOKED)));
+  return `
+    <div class="rounded-xl border p-2 hover:bg-slate-50 cursor-pointer" data-recipe="${r.name}">
+      <img class="photo mb-2" src="${r.img}" alt="${r.name}">
+      <div class="font-semibold">${r.name}</div>
+      <div class="text-xs opacity-70">${r.cuisine} · ${r.protein} · ~${r.time} min</div>
+      <div class="text-xs mt-1">${searchLinks(r.name,r.tags)}</div>
+      <div class="text-xs mt-2 italic opacity-80">Acompaña con: ${salad}</div>
+    </div>`;
+}
+
+function renderSuggestionsPage(){
+  const start=pageIdx*pageSize, end=start+pageSize;
+  const page=currentResults.slice(start,end);
+  const box=document.getElementById('suggestions');
+  box.innerHTML = page.length? page.map(cardHTML).join("") : "<div class='opacity-60'>Sin resultados. Prueba: pollo; pollo, patatas; pimiento; tomate cebolla…</div>";
+  document.getElementById('pageInfo').textContent = currentResults.length? `Página ${pageIdx+1} / ${Math.ceil(currentResults.length/pageSize)} (${currentResults.length} resultados)` : "";
+  Array.from(box.querySelectorAll('[data-recipe]')).forEach(card=>{
+    card.addEventListener('click', ()=>{
+      const r=RECIPES.find(x=>x.name===card.dataset.recipe);
+      chooseDayAndPlace(r);
+    });
+  });
+}
+
+/* ========= Semana ========= */
+function cellHTML(r){
+  const salad = (r.salads.length?pick(r.salads):pick([].concat(SALADS_FRESH,SALADS_COOKED)));
+  return `
+  <div class="rounded-xl border p-2">
+    <img class="photo mb-2" src="${r.img}" alt="${r.name}">
+    <div class="flex items-start justify-between gap-2">
+      <div>
+        <div class="font-semibold">${r.name}</div>
+        <div class="text-xs opacity-70">${r.cuisine} · ${r.protein} · ~${r.time} min</div>
+        <div class="text-xs mt-1">${searchLinks(r.name,r.tags)}</div>
+        <div class="text-xs mt-2 italic opacity-80">Ensalada: ${salad}</div>
+      </div>
+      <button class="cell-btn text-lg px-2 py-1 rounded-lg bg-indigo-600 text-white" title="Otra similar">🎲</button>
+    </div>
+  </div>`;
+}
+function setCell(td,r){
+  td.dataset.name=r.name;
+  td.dataset.ingredients = JSON.stringify(r.tags||[]);
+  td.innerHTML=cellHTML(r);
+  const btn=td.querySelector('.cell-btn');
+  if(btn){
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const pool=RECIPES.filter(x=> (x.name!==r.name) && (x.protein===r.protein || x.cuisine===r.cuisine));
+      setCell(td, pool.length? pool[Math.floor(Math.random()*pool.length)] : RECIPES[Math.floor(Math.random()*RECIPES.length)]);
+    });
+  }
+}
+function chooseDayAndPlace(r){
+  const idx=prompt("¿Para qué día? (1=Lun ... 7=Dom) — vacío = hoy");
+  const i=idx? (parseInt(idx,10)-1) : todayIndex();
+  if(isNaN(i)||i<0||i>6) return;
+  const td=document.querySelector(`td[data-col="${i}"]`);
+  setCell(td,r);
+}
+
+/* ========= Generadores ========= */
+function weekUniqueFrom(pool){
+  const used=new Set();
+  const cells=document.querySelectorAll('td[data-col]');
+  cells.forEach(td=>{
+    const avail = pool.filter(r=>!used.has(r.name));
+    const r = avail.length? avail[Math.floor(Math.random()*avail.length)] : RECIPES[Math.floor(Math.random()*RECIPES.length)];
+    setCell(td,r);
+    used.add(r.name);
+  });
+}
+function generateWeek(){
+  // si hay sugerencias actuales, úsalas; si no, usa todo el catálogo
+  const base = currentResults.length? currentResults : RECIPES;
+  weekUniqueFrom(base);
+}
+function rerollWeek(){ generateWeek(); }
+
+/* ========= Ideas ========= */
+function ideasByKeywords(){
+  const raw=norm(document.getElementById('keywords').value||"");
+  const keys=raw.split(/[,\s]+/).filter(Boolean);
+  currentResults = RECIPES.filter(r=>recipeMatchesKeywords(r, keys));
+  pageIdx=0; renderSuggestionsPage();
+}
+
+/* ========= Lista de compras ========= */
+function buildShoppingList(){
+  let items=[];
+  document.querySelectorAll('td[data-col]').forEach(td=>{
+    const arr=JSON.parse(td.dataset.ingredients||"[]");
+    items=items.concat(arr);
+  });
+  const set=new Set(items.map(x=>x.toLowerCase()));
+  const ul=document.getElementById('shoppingList');
+  ul.innerHTML = set.size? Array.from(set).sort().map(x=>`<li>${x}</li>`).join("") : "<li>Agrega recetas a la semana para ver la lista.</li>";
+}
+
+/* ========= Guardar / Cargar ========= */
+function saveAll(){
+  const plan=[];
+  document.querySelectorAll('td[data-col]').forEach(td=>{
+    plan.push({html:td.innerHTML, ingredients: td.dataset.ingredients||"[]"});
+  });
+  localStorage.setItem('meal_assistant_smart', JSON.stringify({
+    pantry, plan, shopping: document.getElementById('shoppingList').innerHTML
+  }));
+  alert("✅ Guardado en este navegador.");
+}
+function loadAll(){
+  const raw=localStorage.getItem('meal_assistant_smart');
+  if(!raw){ alert("No hay datos guardados."); return; }
+  try{
+    const data=JSON.parse(raw);
+    pantry=data.pantry||[]; renderPantry();
+    const tds=document.querySelectorAll('td[data-col]');
+    tds.forEach((td,i)=>{
+      const c=(data.plan||[])[i]; if(!c) return;
+      td.innerHTML=c.html; td.dataset.ingredients=c.ingredients||"[]";
+      const btn=td.querySelector('.cell-btn');
+      if(btn){ btn.addEventListener('click', (e)=>{ e.stopPropagation(); const any=RECIPES[Math.floor(Math.random()*RECIPES.length)]; setCell(td,any); }); }
+    });
+    document.getElementById('shoppingList').innerHTML=data.shopping||"";
+    alert("✅ Cargado.");
+  }catch(e){ console.error(e); alert("No se pudo cargar."); }
+}
+
+/* ========= Eventos ========= */
+document.getElementById('addItem').addEventListener('click', ()=>{
+  const q=document.getElementById('qty').value;
+  const u=document.getElementById('unit').value;
+  const it=document.getElementById('item').value;
+  if(!q || !it){ alert("Completa cantidad e ingrediente."); return; }
+  pantry.push({qty:Number(q),unit:u,item:norm(it)});
+  renderPantry();
+});
+document.getElementById('clearPantry').addEventListener('click', ()=>{ pantry=[]; renderPantry(); });
+document.getElementById('parseBulk').addEventListener('click', ()=>{
+  const t=document.getElementById('bulk').value||"";
+  t.split(/[;,]/).forEach(seg=>{ const o=parseBulkLine(seg); if(o){ pantry.push(o); } });
+  renderPantry();
+});
+
+document.getElementById('btnIdeasKeywords').addEventListener('click', ideasByKeywords);
+document.getElementById('btnWeek').addEventListener('click', generateWeek);
+document.getElementById('btnWeekReroll').addEventListener('click', rerollWeek);
+
+document.getElementById('btnPrev').addEventListener('click', ()=>{ if(pageIdx>0){ pageIdx--; renderSuggestionsPage(); } });
+document.getElementById('btnNext').addEventListener('click', ()=>{ const max=Math.ceil(currentResults.length/pageSize)-1; if(pageIdx<max){ pageIdx++; renderSuggestionsPage(); }});
+
+document.getElementById('genList').addEventListener('click', buildShoppingList);
+document.getElementById('clearList').addEventListener('click', ()=> document.getElementById('shoppingList').innerHTML="");
+document.getElementById('addExtra').addEventListener('click', ()=>{
+  const v=document.getElementById('extraItem').value.trim(); if(!v) return;
+  const ul=document.getElementById('shoppingList'); ul.innerHTML += `<li>${v}</li>`; document.getElementById('extraItem').value="";
+});
+
+document.getElementById('btnSave').addEventListener('click', saveAll);
+document.getElementById('btnLoad').addEventListener('click', loadAll);
+
+/* ========= Inicio ========= */
+renderPantry();              // vacío → muestra catálogo completo
+currentResults=RECIPES.slice();
+renderSuggestionsPage();
+</script>
+</body>
+</html>
